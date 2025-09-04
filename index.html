@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meme Story Weaver</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body {
+  font-family: 'Poppins', sans-serif;
+}
+.meme-grid-item {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  cursor: pointer;
+}
+.meme-grid-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
+}
+.meme-grid-item.selected {
+  transform: scale(0.95);
+  border-color: #ec4899;
+  opacity: 0.7;
+}
+.sequence-item {
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes pop-in {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #ec4899;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+.shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+.rating-star {
+  color: #f59e0b; /* amber-500 */
+}
+</style>
+</head>
+<body class="bg-slate-900 text-slate-200 flex flex-col items-center justify-center min-h-screen p-4">
+
+<div class="w-full max-w-2xl mx-auto bg-slate-800 rounded-2xl shadow-2xl p-6">
+  <div class="text-center mb-6">
+    <h1 class="text-4xl font-bold text-white">Meme Story Weaver</h1>
+    <p class="text-slate-400 mt-2">Select 3 memes to create your narrative arc.</p>
+  </div>
+
+  <!-- 5x5 Meme Grid -->
+  <div id="memeGrid" class="grid grid-cols-5 gap-3 mb-6 aspect-square">
+    <!-- Memes will be injected here by JS -->
+  </div>
+
+  <!-- Story Sequence Display -->
+  <div class="bg-slate-900 rounded-lg p-3 min-h-[100px] mb-4">
+    <h2 class="text-sm font-semibold text-slate-400 mb-2">Your Story Sequence:</h2>
+    <div id="storySequence" class="flex flex-wrap gap-2">
+      <!-- Selected memes appear here -->
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div id="actionButtons" class="flex flex-col sm:flex-row gap-3 mb-6">
+    <button id="generateStoryBtn" class="w-full px-6 py-3 bg-pink-600 text-white font-semibold rounded-lg shadow-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:scale-100">
+      ✨ Weave My Story
+    </button>
+    <button id="clearBtn" class="w-full sm:w-auto px-6 py-3 bg-slate-600 text-white font-semibold rounded-lg shadow-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+      Clear
+    </button>
+  </div>
+
+  <!-- Story Output & Rating -->
+  <div id="storyOutputContainer" class="bg-slate-900 rounded-lg p-5 text-center hidden">
+    <div id="loader" class="hidden mx-auto mb-4"></div>
+    <p id="storyOutput" class="text-lg text-slate-300 whitespace-pre-wrap mb-4"></p>
+    <!-- Rating Display -->
+    <div id="ratingContainer" class="hidden">
+      <h3 id="ratingTitle" class="text-2xl font-bold text-pink-400 mb-2"></h3>
+      <div id="ratingStars" class="text-3xl mb-2"></div>
+      <p id="ratingCritique" class="text-slate-400 italic"></p>
+    </div>
+
+    <button id="submitBtn" class="hidden w-1/2 mx-auto px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 transition-transform transform hover:scale-105 disabled:bg-slate-700 disabled:cursor-not-allowed">
+      ✨ Get It Rated!
+    </button>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const memeGrid = document.getElementById('memeGrid');
+  const storySequence = document.getElementById('storySequence');
+  const generateStoryBtn = document.getElementById('generateStoryBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const storyOutputContainer = document.getElementById('storyOutputContainer');
+  const loader = document.getElementById('loader');
+  const storyOutput = document.getElementById('storyOutput');
+  const submitBtn = document.getElementById('submitBtn');
+  const actionButtons = document.getElementById('actionButtons');
+
+  const ratingContainer = document.getElementById('ratingContainer');
+  const ratingTitle = document.getElementById('ratingTitle');
+  const ratingStars = document.getElementById('ratingStars');
+  const ratingCritique = document.getElementById('ratingCritique');
+
+  // --- Meme Data (Updated) ---
+  const MEMES = [
+    { name: 'Distracted Boyfriend', url: 'https://i.imgflip.com/1ur9b0.jpg' },
+    { name: 'Woman Yelling at a Cat', url: 'https://i.imgflip.com/345v97.jpg' },
+    { name: 'Drake Hotline Bling', url: 'https://i.imgflip.com/30b1gx.jpg' },
+    { name: 'This is Fine Dog', url: 'https://i.imgflip.com/1llb3v.jpg' },
+    { name: 'Surprised Pikachu', url: 'https://i.imgflip.com/2kprbc.jpg' },
+    { name: 'Expanding Brain', url: 'https://i.imgflip.com/1jwhww.jpg' },
+    { name: "They Don't Know", url: 'https://i.imgflip.com/56f2v8.jpg'},
+    { name: 'Two Soyjaks Pointing', url: 'https://i.imgflip.com/5c57y0.jpg' },
+    { name: 'Panik Kalm Panik', url: 'https://i.imgflip.com/3qqv2d.jpg' },
+    { name: 'I am once again asking', url: 'https://i.imgflip.com/3r2r1g.jpg'},
+    { name: 'Hide the Pain Harold', url: 'https://i.imgflip.com/22bdq6.jpg' },
+    { name: 'Roll Safe', url: 'https://i.imgflip.com/1kblsf.jpg' },
+    { name: 'Is This a Pigeon?', url: 'https://i.imgflip.com/2br0s6.jpg' },
+    { name: 'Running Away Balloon', url: 'https://i.imgflip.com/2tr154.jpg' },
+    { name: "Gru's Plan", url: 'https://i.imgflip.com/1qy25t.jpg' },
+    { name: 'Change My Mind', url: 'https://i.imgflip.com/24kpdx.jpg'},
+    { name: 'Sad Pablo Escobar', url: 'https://i.imgflip.com/152l86.jpg'},
+    { name: 'Buff Doge vs Cheems', url: 'https://i.imgflip.com/43a45p.jpg'},
+    { name: 'UNO Draw 25', url: 'https://i.imgflip.com/3l08k3.jpg'},
+    { name: 'Bernie Sanders Mittens', url: 'https://i.imgflip.com/4v60k2.jpg'},
+    { name: 'Confused Nick Young', url: 'https://i.imgflip.com/271ps6.jpg'},
+    { name: 'Elmo Rise', url: 'https://i.imgflip.com/317g0c.jpg'},
+    { name: 'Clown Applying Makeup', url: 'https://i.imgflip.com/3kmj3x.jpg'},
+    { name: 'Monkey Puppet', url: 'https://i.imgflip.com/2sbl26.jpg'},
+    { name: 'Disaster Girl', url: 'https://i.imgflip.com/23lsfa.jpg'}
+  ];
+
+  let selectedMemes = [];
+
+  // --- Gemini API ---
+  const API_KEY = "AIzaSyCe9Vable80_GLfUsgIOlue6XlEDEmKDo0"; // Keep as-is (security handling intentionally ignored)
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+
+  async function callGemini(systemPrompt, userQuery, isJson = false) {
+    const payload = {
+      contents: [{ parts: [{ text: userQuery }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+    };
+
+    if (isJson) {
+      payload.generationConfig = {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            "title": { "type": "STRING" },
+            "rating": { "type": "NUMBER" },
+            "critique": { "type": "STRING" }
+          },
+          required: ["title", "rating", "critique"]
+        }
+      };
+    }
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+      const result = await response.json();
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } catch (error) {
+      console.error("Gemini API call failed:", error);
+      return null;
+    }
+  }
+
+  async function generateStory() {
+    if (selectedMemes.length !== 3) {
+      storyOutput.textContent = "Please select exactly 3 memes to continue.";
+      storyOutputContainer.style.display = 'block';
+      return;
+    }
+
+    storyOutputContainer.style.display = 'block';
+    loader.style.display = 'block';
+    storyOutput.style.display = 'none';
+    submitBtn.style.display = 'none';
+    ratingContainer.style.display = 'none';
+    generateStoryBtn.disabled = true;
+
+    const memeNames = selectedMemes.map(meme => meme.name).join(', ');
+    const systemPrompt = "You are a storyteller for a Gen-Z audience. Your task is to write a short (2-3 sentences max), quippy, and funny story connecting a sequence of memes in order. The humor can be dark or absurd. Be extremely concise and land a punchline. Use emojis.";
+    const userQuery = `Weave a story using this meme sequence: ${memeNames}.`;
+
+    const text = await callGemini(systemPrompt, userQuery);
+    storyOutput.textContent = text || "The memes were too powerful... couldn't generate a story. Try again!";
+    storyOutput.style.display = 'block';
+    submitBtn.style.display = 'block';
+    loader.style.display = 'none';
+    generateStoryBtn.disabled = false;
+  }
+
+  async function judgeStory() {
+    submitBtn.disabled = true;
+    loader.style.display = 'block';
+    const memeNames = selectedMemes.map(meme => meme.name).join(', ');
+    const storyText = storyOutput.textContent;
+
+    const systemPrompt = "You are a harsh but fair meme connoisseur judging a story created from memes. Your response MUST be a JSON object. Give a witty 'title' for the story. Provide a 'rating' from 1 to 5. Write a short, funny, and slightly roasting 'critique' of the story. Be savage but hilarious.";
+    const userQuery = `Judge this story: "${storyText}" which was based on the meme sequence: ${memeNames}.`;
+
+    const jsonResponse = await callGemini(systemPrompt, userQuery, true);
+
+    if (jsonResponse) {
+      try {
+        const rating = JSON.parse(jsonResponse);
+        ratingTitle.textContent = rating.title;
+
+        const scoreNum = Number(rating.rating);
+        const score = Math.max(1, Math.min(5, Math.round(isNaN(scoreNum) ? 0 : scoreNum)));
+        ratingStars.innerHTML = '★'.repeat(score) + '☆'.repeat(5 - score);
+        ratingStars.setAttribute('aria-label', `Rating: ${score} out of 5`);
+
+        ratingCritique.textContent = rating.critique;
+
+        storyOutput.style.display = 'none';
+        submitBtn.style.display = 'none';
+        actionButtons.style.display = 'none';
+        ratingContainer.style.display = 'block';
+
+      } catch (e) {
+        ratingCritique.textContent = "The judge is confused. The vibes were off. Try again.";
+        ratingContainer.style.display = 'block';
+      }
+    } else {
+      ratingCritique.textContent = "The judge has left the building. Please try again later.";
+      ratingContainer.style.display = 'block';
+    }
+    loader.style.display = 'none';
+    submitBtn.disabled = false;
+  }
+
+  // --- UI Logic ---
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  function initGrid() {
+    memeGrid.innerHTML = '';
+    shuffleArray(MEMES);
+    const gridMemes = MEMES.slice(0, 25);
+
+    gridMemes.forEach(meme => {
+      const item = document.createElement('div');
+      item.className = 'meme-grid-item relative w-full h-full bg-slate-700 rounded-lg overflow-hidden border-4 border-transparent';
+      item.dataset.name = meme.name;
+
+      const img = document.createElement('img');
+      img.src = meme.url;
+      img.alt = meme.name;
+      img.className = 'w-full h-full object-cover';
+      img.onerror = () => { img.src = 'https://placehold.co/100x100/1e293b/ffffff?text=Error'; };
+
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white font-bold text-3xl opacity-0 transition-opacity';
+
+      item.appendChild(img);
+      item.appendChild(overlay);
+      item.addEventListener('click', () => handleMemeClick(meme));
+      memeGrid.appendChild(item);
+    });
+  }
+
+  function attrSelectorEscape(val) {
+    // Escape " and \ for use inside a double-quoted attribute selector
+    return String(val).replace(/["\\]/g, '\\$&');
+  }
+
+  function updateVisuals() {
+    document.querySelectorAll('.meme-grid-item').forEach(item => {
+      item.classList.remove('selected');
+      const overlay = item.querySelector('.overlay');
+      overlay.style.opacity = 0;
+      overlay.textContent = '';
+    });
+
+    selectedMemes.forEach((meme, index) => {
+      const selector = `.meme-grid-item[data-name="${attrSelectorEscape(meme.name)}"]`;
+      const itemElement = document.querySelector(selector);
+      if (itemElement) {
+        itemElement.classList.add('selected');
+        const overlay = itemElement.querySelector('.overlay');
+        overlay.textContent = index + 1;
+        overlay.style.opacity = 1;
+      }
+    });
+
+    updateStorySequence();
+  }
+
+  function handleMemeClick(meme) {
+    const existingMemeIndex = selectedMemes.findIndex(m => m.name === meme.name);
+    if (existingMemeIndex > -1) {
+      selectedMemes.splice(existingMemeIndex, 1);
+    } else {
+      if (selectedMemes.length >= 3) {
+        memeGrid.classList.add('shake');
+        setTimeout(() => memeGrid.classList.remove('shake'), 500);
+        return;
+      }
+      selectedMemes.push(meme);
+    }
+    updateVisuals();
+  }
+
+  function updateStorySequence() {
+    storySequence.innerHTML = '';
+    selectedMemes.forEach((meme, index) => {
+      const seqItem = document.createElement('div');
+      seqItem.className = 'sequence-item relative';
+
+      const img = document.createElement('img');
+      img.src = meme.url;
+      img.alt = meme.name;
+      img.className = 'w-16 h-16 object-cover rounded-md';
+      img.onerror = () => { img.src = 'https://placehold.co/64x64/1e293b/ffffff?text=Error'; };
+
+      const numberBadge = document.createElement('span');
+      numberBadge.className = 'absolute -top-1 -right-1 bg-pink-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center';
+      numberBadge.textContent = index + 1;
+
+      seqItem.appendChild(img);
+      seqItem.appendChild(numberBadge);
+      storySequence.appendChild(seqItem);
+    });
+  }
+
+  function clearSelection() {
+    selectedMemes = [];
+    updateVisuals();
+    storyOutputContainer.style.display = 'none';
+    actionButtons.style.display = 'flex';
+    storyOutput.style.display = 'block';
+    submitBtn.style.display = 'none';
+  }
+
+  generateStoryBtn.addEventListener('click', generateStory);
+  clearBtn.addEventListener('click', clearSelection);
+  submitBtn.addEventListener('click', judgeStory);
+
+  initGrid();
+});
+</script>
+</body>
+</html>
